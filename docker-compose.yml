@@ -1,0 +1,68 @@
+version: "3.8"
+services:
+  redis:
+    build: "./redis"
+    container_name: redis
+    ports:
+      - "${REDIS_PORT}:${REDIS_PORT}"
+    volumes:
+      - redis-data:/data
+    networks:
+      - app-network
+
+  frontend:
+    build: "./frontend"
+    container_name: frontend
+    ports:
+      - "${FRONTEND_PORT}:${FRONTEND_PORT}"
+    environment:
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      DOCKER_HOST: ${DOCKER_HOST}
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - redis
+    networks:
+      - app-network
+
+  backend:
+    build: "./backend-v2"
+    container_name: backend
+    ports:
+      - "${BACKEND_PORT}:${BACKEND_PORT}"
+    environment:
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      DOCKER_HOST: ${DOCKER_HOST}
+    volumes:
+      - ./backend-v2:/app
+      - /app/node_modules
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - redis
+    networks:
+      - app-network
+
+  container-cleaner-job:
+    build: "./container-cleaner-job"
+    container_name: container-cleaner-job
+    environment:
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      DOCKER_HOST: ${DOCKER_HOST}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - redis
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  redis-data:
