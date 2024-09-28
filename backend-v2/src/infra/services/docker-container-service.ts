@@ -20,8 +20,14 @@ export class DockerContainerService implements IContainerService {
         .split("/")
         .pop()
         ?.replace(/[^a-zA-Z0-9]/g, "-") ?? "unknown-repo";
+
     const containerName = `code-server-${githubLogin}-${repoName}`;
+
+    console.log("CONTAINER NAME");
+    console.log(containerName);
+
     const host = containerName;
+
     const existingContainer = containers.find((container) =>
       container.Names.includes(`/${containerName}`)
     );
@@ -54,34 +60,37 @@ export class DockerContainerService implements IContainerService {
           url: `http://localhost:${hostPort}`,
         };
       }
+    } else {
+      const container = await this.docker.createContainer({
+        Image: "code-server-custom",
+        name: containerName,
+        ExposedPorts: {
+          "8080/tcp": {},
+        },
+        HostConfig: {
+          Privileged: true,
+          PublishAllPorts: true,
+          NetworkMode: "architector_app-network",
+        },
+
+        Env: [`GITHUB_TOKEN=${githubToken}`, `REPO_URL=${repoUrl}`],
+      });
+
+      await container.start();
+
+      const data = await container.inspect();
+
+      const hostPort = data.NetworkSettings.Ports["8080/tcp"][0].HostPort;
+
+      await this.waitForServerReady(host, Number(hostPort));
+
+      console.log(host, hostPort);
+
+      return {
+        containerId: container.id,
+        url: `http://localhost:${hostPort}`,
+      };
     }
-
-    const container = await this.docker.createContainer({
-      Image: "code-server-custom",
-      name: containerName,
-      ExposedPorts: {
-        "8080/tcp": {},
-      },
-      HostConfig: {
-        Privileged: true,
-        PublishAllPorts: true,
-        NetworkMode: "monolito_app-network",
-      },
-
-      Env: [`GITHUB_TOKEN=${githubToken}`, `REPO_URL=${repoUrl}`],
-    });
-
-    await container.start();
-
-    const data = await container.inspect();
-
-    const hostPort = data.NetworkSettings.Ports["8080/tcp"][0].HostPort;
-
-    await this.waitForServerReady(host, Number(hostPort));
-
-    console.log(host, hostPort);
-
-    return { containerId: container.id, url: `http://${host}:8080` };
   }
   async stopContainer(containerId: string): Promise<void> {
     const container = this.docker.getContainer(containerId);
@@ -93,7 +102,7 @@ export class DockerContainerService implements IContainerService {
   private async waitForServerReady(
     host: string,
     port: number,
-    retries = 10,
+    retries = 5,
     interval = 2000
   ): Promise<void> {
     for (let i = 0; i < retries; i++) {
@@ -115,7 +124,8 @@ export class DockerContainerService implements IContainerService {
     host: string,
     port: number
   ): Promise<boolean> {
-    // SE ROTA NO CONTAINER A PORTA DEVE SER 8080, SE FOR LOCAL DEVE SER O PORT
+    console.log(host, port);
+    // SE RODA NO CONTAINER A PORTA DEVE SER 8080, SE FOR LOCAL DEVE SER O PORT
     try {
       const response = await axios.get(`http://${host}:8080`);
       return response.status === 200;

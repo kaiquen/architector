@@ -26,6 +26,7 @@ export default function Page () {
 
     setLoading(true);
   
+    console.log("AQUI")
     try {
       const response = await fetch("http://localhost:3001/code-server", {
         method: "POST",
@@ -40,23 +41,26 @@ export default function Page () {
         }),
       });
 
+      console.log(response);
+
 
       if (response.ok ) {
         const data = await response.json();
 
+        
         console.log("URL **************************************")
         console.log(data.url)
 
-        
         setCodeServerUrl(data.url ?? null);
       } else {
         setError("Erro ao iniciar o code-server");
       }
     } catch (error) {
       setError("Erro ao se conectar ao servidor");
-    } finally {
-      setLoading(false);
-    }
+    } 
+
+    setLoading(false);
+
   }, [user, params]);
 
   useEffect(() => {
